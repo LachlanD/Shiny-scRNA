@@ -5,7 +5,11 @@
 # Find out more about building applications with Shiny here:
 #
 #    http://shiny.rstudio.com/
-#
+#\
+
+library(BiocManager)
+options(repos = BiocManager::repositories())
+
 
 library(shiny)
 library(scater)
@@ -60,9 +64,9 @@ shinyServer(function(input, output) {
     output$mtxUI <- renderUI({
         validate(need(mtx(), message = FALSE))
         
-        m <- readMM(mtx())
+        m <- read.table(mtx(), skip =2, nrows = 1)
         
-        tags$div(nrow(m), "X", ncol(m), " Matrix")
+        tags$div(m$V1, "X", m$V2, " Matrix")
     })
     
     output$annUI <- renderUI({
