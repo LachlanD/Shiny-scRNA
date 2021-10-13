@@ -5,7 +5,7 @@
 # Find out more about building applications with Shiny here:
 #
 #    http://shiny.rstudio.com/
-#\
+#
 
 library(BiocManager)
 options(repos = BiocManager::repositories())
@@ -16,6 +16,7 @@ library(scater)
 library(scran)
 library(edgeR)
 library(Matrix)
+library(DT)
 
 
 shinyServer(function(input, output) {
@@ -82,6 +83,8 @@ shinyServer(function(input, output) {
                  need(genes(), message = FALSE),
                  need(barcodes(), message = FALSE))
         
+        ###########################################################
+        ## Following Code modifed from read10X in edgeR package
         N <- scan(mtx(),skip=2,what=0L,sep=" ",nmax=3,quiet=TRUE)
         ngenes <- N[1]
         ncells <- N[2]
@@ -111,7 +114,8 @@ shinyServer(function(input, output) {
             if(length(Barcodes) != ncells) stop("Number of barcodes doesn't agree with header information in mtx file")
             Samples <- data.frame(Barcode=Barcodes)
         }
-        
+        ## End edgeR code
+        ########################################################
         
         dge <- DGEList(count=y,genes=Genes,samples=Samples)
         
@@ -197,23 +201,333 @@ shinyServer(function(input, output) {
         SingleCellExperiment(list(counts=dge.filtered()$counts))
     })
     
-    clus <- reactive({
+    clus <- eventReactive(input$cluster_1, {
         validate(need(input$clus, message = FALSE),
                  need(sce(), message = FALSE))
+        
+        set.seed(input$seed)
         
         quickCluster(sce(), method=input$clus, min.mean=0.5)
     })
     
-    output$normUI <- renderTable({
-        table(clus())
+    output$normUI <- renderPlot({
+        validate(need(clus(), message = FALSE))
+        
+        plot(clus(), xlab = "clusters", ylab = "Frequency")
     }) 
     
-    sce.c <- reactive({
-        sce.c <- computeSumFactors(sce(), cluster=clst)
+    sce.n <- eventReactive(input$normalize,{
+        s <- computeSumFactors(sce(), cluster=clus())
+        s <-logNormCounts(s)
+        
+        colData(s) <- cbind(colData(s), log10LibSize=log10(libSize()))
+        
+        s
+    })
+    
+    libSize <- reactive({
+        dge()$samples$lib.size
     })
     
     output$libsize <- renderPlot({
-        libSize <- dge()$samples$lib.size
-        plot(libSize/1000, sizeFactors(sce.c()), log="xy", pch=16, cex=0.7, xlab="library size (x1000)", ylab="Size fact")
+        validate(need(sce.n(), message = FALSE),
+                 need(libSize(), message = FALSE))
+        
+        plot(libSize()/1000, sizeFactors(sce.n()), log="xy", pch=16, cex=0.7, xlab="library size (x1000)", ylab="Size fact")
+    })
+    
+    var <- reactive({
+        validate(need(sce.n(), message = FALSE))
+        var <- modelGeneVar(sce.n())
+        
+        var<-var[order(var$bio, decreasing = TRUE),]
+        var<- as.data.frame(var)
+        var$ID <- seq.int(nrow(var))
+        var
+    })
+        
+    
+    output$varTable <- renderDT({
+        validate(need(var(), message = FALSE))
+        
+        var()[1:6]
+    })
+    
+    output$means <- renderPlot({
+        validate(need(var(), message = FALSE))
+        v <- var()
+        
+        s <- input$varTable_rows_selected
+        
+        fit <- fitTrendVar(v$mean, v$total)
+        
+        plot(v$mean, v$total,pch=16,cex=0.7)
+        curve(fit$trend(x), col="blue", add=TRUE, lwd=2)
+        if (length(s)) points(v[s,]$mean, v[s,]$total, col = "red", pch = 19, cex = 2)
+    })
+    
+    observeEvent(input$plot_click,{
+        validate(need(var(), message = FALSE))
+        v <- var()
+        
+        np <- nearPoints(v, input$plot_click, xvar = "mean", yvar = "total")
+        
+        if(nrow(np)){
+            dtp <- dataTableProxy(
+                "varTable",
+                session = shiny::getDefaultReactiveDomain(),
+                deferUntilFlush = TRUE
+            )
+            s <- input$varTable_rows_selected
+            if(length(s)){
+                if(!(np$ID %in% s))
+                    s <- c(s, np$ID)
+                else
+                    s <- s[s != np$ID]
+            } else {
+                s <- c(np$ID)
+            }
+            
+            selectRows(dtp, s)
+        }
+    })
+    
+    observeEvent(input$select,{
+        t <- input$top
+        
+        dtp <- dataTableProxy(
+            "varTable",
+            session = shiny::getDefaultReactiveDomain(),
+            deferUntilFlush = TRUE
+        )
+
+        
+        if(input$select){
+            selectRows(dtp, 1:t)
+        } else {
+            selectRows(dtp, NULL)    
+        }
+    })
+    
+    observeEvent(input$top,{
+        t <- input$top
+        
+        dtp <- dataTableProxy(
+            "varTable",
+            session = shiny::getDefaultReactiveDomain(),
+            deferUntilFlush = TRUE
+        )
+        
+        if(input$select){
+            selectRows(dtp, 1:t)
+        }
+    })
+    
+    var.e <-reactive({
+        validate(need(var(), message = FALSE))
+        
+        s <- input$varTable_rows_selected
+        
+        if(length(s))
+            v<-var()[s,]
+        v
+    })
+    
+    output$expression <- renderPlot({
+        validate(need(sce.n(), message = FALSE))
+        sce <- sce.n()
+        
+        s <- input$expTable_rows_selected
+        if(length(s))
+        {
+            plotExpression(sce, features=rownames(var.e())[s])
+        }
+    })
+    
+    output$expTable <- renderDT({
+        validate(need(var.e(), message = FALSE))
+        
+        var.e()[1:6]
+    })
+    
+    output$colTable <- renderDT({
+        validate(need(var.e(), message = FALSE))
+        
+        var.e()[1:6]
+    }, selection = 'single')
+    
+    output$pca <- renderPlot({
+        validate(
+            need(sce.p(), message = FALSE),
+            need(libSize(), message = FALSE)
+        )
+        
+        sce <- sce.p()
+
+        ncol(reducedDim(sce, "PCA"))
+        
+        n <- input$pcas
+        
+        colData(sce) <- cbind(colData(sce), log10LibSize=log10(libSize()))
+        plotPCASCE(sce, colour_by = "log10LibSize", ncomponents = n)    
+    })
+    
+    sce.p <- eventReactive(input$pca, {
+        validate(
+            need(sce.n(), message = FALSE),
+            need(var(), message = FALSE),
+            need(libSize(), message = FALSE)
+        )
+
+        v<-var()
+        
+        
+        if(input$subset_type == 1){
+            s <- NULL
+        } else if(input$subset_type == 2){
+            s <- v[input$varTable_rows_selected,]
+        } else {
+            s <- v[1:input$hvg,]
+        }
+        
+        sce <- denoisePCA(sce.n(), subset.row = rownames(s) ,technical=v$tech, min.rank=10, max.rank=30)
+        
+        sce
+    })
+    
+    sce.t <- eventReactive(input$tsne,{
+        validate(need(sce.n(), message = FALSE))
+        
+        set.seed(input$seed)
+        sce <- runTSNE(sce.n(), use_dimred="PCA", perplexity=100, theta=0)
+        
+        sce
+    })
+    
+    output$tsne <- renderPlot({
+        validate(need(sce.t(), message = FALSE))
+        
+        s <- input$colTable_rows_selected
+        
+        if(length(s)){
+            plotTSNE(sce.t(), colour_by=rownames(var.e())[s])
+        } else {
+            plotTSNE(sce.t(), colour_by="log10LibSize")
+        }
+    })
+    
+    cluster <- eventReactive(input$cluster_2, {
+        validate(need(sce.p(), message = FALSE))
+        
+        if(input$cluster_type == "Hierarchical"){
+            h <- quickCluster(sce.p(), subset.row=hvg, assay.type="logcounts", method="hclust", min.size=50, min.mean=0.5)
+            c <- factor(h)
+        } else {
+            snn <- buildSNNGraph(sce.p(), k=input$knn, use.dimred="PCA")
+            w <- igraph::cluster_walktrap(snn)
+            c <- factor(w$membership)
+        }
+        
+        c
+    })
+    
+    sce.c <- eventReactive(input$cluster_2, {
+        validate(need(sce.t(), message = FALSE),
+            need(cluster(), message = FALSE)         
+        )
+        
+        s <- sce.t()
+        
+        s$Cluster <- cluster()
+        
+        s
+    })
+    
+    output$clusterPlot <- renderPlot({
+        validate(need(cluster(), message = FALSE))
+        
+        plot(cluster(), xlab = "clusters", ylab = "Frequency")
+    })
+    
+    output$clusterTSNE <- renderPlot({
+        validate(need(sce.c(), message = FALSE))
+        
+        plotTSNE(sce.c(), colour_by="Cluster")  
+    })
+    
+    observeEvent(input$next_1, {
+        validate(need(dge(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Filter")
+    })
+    
+    observeEvent(input$next_2, {
+        validate(need(dge.filtered(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Normalization")
+    })
+    
+    observeEvent(input$back_2, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Files")
+    })
+    
+    observeEvent(input$next_3, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Variance")
+    })
+    
+    observeEvent(input$back_3, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Filter")
+    })
+    
+    observeEvent(input$next_4, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Expression")
+    })
+    
+    observeEvent(input$back_4, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Normalization")
+    })
+    
+    observeEvent(input$next_5, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "PCA")
+    })
+    
+    observeEvent(input$back_5, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Variance")
+    })
+    
+    observeEvent(input$next_6, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "TSNE")
+    })
+    
+    observeEvent(input$back_6, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Expression")
+    })
+    
+    observeEvent(input$next_7, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Cluster")
+    })
+    
+    observeEvent(input$back_7, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "PCA")
+    })
+    
+    observeEvent(input$next_8, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Export")
+    })
+    
+    observeEvent(input$back_8, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "TSNE")
     })
 })
