@@ -7,19 +7,21 @@
 #    http://shiny.rstudio.com/
 #
 
+library(shiny)
+library(DT)
+
 library(BiocManager)
 options(repos = BiocManager::repositories())
 
-
-library(shiny)
 library(scater)
 library(scran)
 library(edgeR)
-library(Matrix)
-library(DT)
+#library(pheatmap)
+library(InteractiveComplexHeatmap)
+library(ComplexHeatmap)
 
 
-shinyServer(function(input, output) {
+shinyServer(function(input, output, session) {
 
     mtx <- reactive({
         validate(need(input$mtx, message = FALSE))
@@ -376,21 +378,10 @@ shinyServer(function(input, output) {
         validate(
             need(sce.n(), message = FALSE),
             need(var(), message = FALSE),
-            need(libSize(), message = FALSE)
+            need(hvg(), message = FALSE)
         )
-
-        v<-var()
         
-        
-        if(input$subset_type == 1){
-            s <- NULL
-        } else if(input$subset_type == 2){
-            s <- v[input$varTable_rows_selected,]
-        } else {
-            s <- v[1:input$hvg,]
-        }
-        
-        sce <- denoisePCA(sce.n(), subset.row = rownames(s) ,technical=v$tech, min.rank=10, max.rank=30)
+        sce <- denoisePCA(sce.n(), subset.row = hvg() ,technical=var()$tech, min.rank=10, max.rank=30)
         
         sce
     })
@@ -416,11 +407,31 @@ shinyServer(function(input, output) {
         }
     })
     
-    cluster <- eventReactive(input$cluster_2, {
-        validate(need(sce.p(), message = FALSE))
+    
+    hvg <- reactive({
+        validate(need(var(), message = FALSE))
         
+        v<-var()
+        
+        
+        if(input$subset_type == 1){
+            s <- NULL
+        } else if(input$subset_type == 2){
+            s <- v[input$varTable_rows_selected,]
+        } else {
+            s <- v[1:input$hvg,]
+        }
+        
+        rownames(s)
+    })
+    
+    cluster <- eventReactive(input$cluster_2, {
+        validate(need(sce.p(), message = FALSE),
+                 need(hvg(), message = FALSE))
+        
+
         if(input$cluster_type == "Hierarchical"){
-            h <- quickCluster(sce.p(), subset.row=hvg, assay.type="logcounts", method="hclust", min.size=50, min.mean=0.5)
+            h <- quickCluster(sce.p(), subset.row=hvg(), assay.type="logcounts", method="hclust", min.size=input$min_c, min.mean=0.5)
             c <- factor(h)
         } else {
             snn <- buildSNNGraph(sce.p(), k=input$knn, use.dimred="PCA")
@@ -453,6 +464,39 @@ shinyServer(function(input, output) {
         validate(need(sce.c(), message = FALSE))
         
         plotTSNE(sce.c(), colour_by="Cluster")  
+    })
+    
+    markers <- reactive({
+        validate(need(sce.c(), message = FALSE))
+        
+        markers <- findMarkers(sce.c(), group=sce.c()$Cluster, direction="up")
+        
+        markers
+    })
+    
+    gset <- reactive({
+        validate(need(markers(), message = FALSE))
+        
+        top10 <- lapply(markers(), "[", 1:10, )
+        g <- as.vector(sapply(top10, "rownames"))
+        g <- g[!duplicated(g)]
+        
+        
+        g
+    })
+    
+    heatmap <- reactive({
+        validate(need(sce.c(), message = FALSE),
+                 need(gset(), message = FALSE))
+        
+        s <- sce.c()[gset()]
+
+        Heatmap(logcounts(s), column_split = s$Cluster, show_row_dend = FALSE, show_column_dend = FALSE, cluster_columns = FALSE)
+    })
+    
+    observeEvent(input$show_heatmap,{
+        InteractiveComplexHeatmapWidget(input, output, session, heatmap(),
+                                        output_id = "heatmap_output")   
     })
     
     observeEvent(input$next_1, {
@@ -524,10 +568,20 @@ shinyServer(function(input, output) {
     observeEvent(input$next_8, {
         validate(need(sce.n(), message = FALSE))
         
-        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Export")
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Markers")
     })
     
     observeEvent(input$back_8, {
         updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "TSNE")
+    })
+    
+    observeEvent(input$next_9, {
+        validate(need(sce.n(), message = FALSE))
+        
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Export")
+    })
+    
+    observeEvent(input$back_9, {
+        updateTabItems(shiny::getDefaultReactiveDomain(), "tabs", selected = "Cluster")
     })
 })

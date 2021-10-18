@@ -12,6 +12,8 @@ library(shinydashboard)
 library(DT)
 library(shinycssloaders)
 
+
+
 # Define UI for application that draws a histogram
 options(shiny.maxRequestSize = 500*1024^2)
 shinyUI(
@@ -29,6 +31,7 @@ shinyUI(
                          menuItem("Principal Component Analysis", tabName = "PCA", icon = icon("ruler-combined")),
                          menuItem("t-SNE Analysis", tabName = "TSNE", icon = icon("project-diagram")),
                          menuItem("Cluster", tabName = "Cluster", icon = icon("code-branch")),
+                         menuItem("Markers", tabName = "Markers", icon = icon("flag")),
                          menuItem("Export", tabName = "Export", icon = icon("file-download")),
                          menuItem("Random Seed", tabName = "Seed", icon = icon("dice")),
                          menuItem("About", tabName = "About", icon = icon("info-circle"))
@@ -161,9 +164,10 @@ shinyUI(
                         ),
                         column(4,
                             numericInput("knn", "k", value = 60, min = 10, step = 1, width = "150px"),
+                            numericInput("min_c", "min. heirarchial cluster size", value = 50, min = 10, step = 1, width = "150px") 
                         )
                     ),
-                    plotOutput("clusterTSNE"),
+                    withSpinner(plotOutput("clusterTSNE")),
                     fluidRow(column(4, actionButton("cluster_2", "Cluster"), offset = 8)),
                     fluidRow(
                         column(2,actionButton("back_8", "Back", icon = icon("backward")), offset = 8),
@@ -171,9 +175,11 @@ shinyUI(
                     )
                 ),
                 tabItem(tabName = "Markers",
+                    htmlOutput("heatmap_output"),
+                    actionButton("show_heatmap", "Show/Refresh Heatmap"),
                     fluidRow(
-                        column(2,actionButton("back_8", "Back", icon = icon("backward")), offset = 8),
-                        column(2,actionButton("next_8", "Next", icon = icon("forward")))
+                        column(2,actionButton("back_9", "Back", icon = icon("backward")), offset = 8),
+                        column(2,actionButton("next_9", "Next", icon = icon("forward")))
                     )    
                 ),
                 tabItem(tabName = "Export",
