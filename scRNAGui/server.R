@@ -193,7 +193,7 @@ shinyServer(function(input, output, session) {
     output$filterPlot <- renderPlot({
         validate(need(dge.filtered(), message = FALSE))
         
-        hist(log(rowSums(dge.filtered()$counts)))
+        hist(log(rowSums(dge.filtered()$counts)), xlab = "Log counts", ylab = "Frequency", main = "Gene Log Counts Frequency")
         
     })
     
