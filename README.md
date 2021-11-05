@@ -11,7 +11,7 @@ Siny/R app which provides a graphical interface for exploratory data analysis of
 
 ## Launching App
 
-To start the app download or clone the ui.R and server.R files and open them with RStudio the click the run app button.
+After installing any required packages from cran or bioconductor, start the app download or clone the ui.R and server.R files and open them with RStudio the click the run app button.
 
 ![Launch](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/run.PNG?raw=true)
 
@@ -50,6 +50,21 @@ Plot the exprssion of the genes by selecting them from the table.
 
 ![expression](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/expression.gif?raw=true)
 
+## Principal Component Analysis
 
+![pca](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/pca.PNG?raw=true)
+
+
+## t-SNE
+
+![tsne](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/tsne.gif?raw=true)
+
+## Cluster
+
+![cluster](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/cluster.PNG?raw=true)
+
+## Heatmap
+
+![heatmap](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/heatmap.PNG?raw=true)
 
 
