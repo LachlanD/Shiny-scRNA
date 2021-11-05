@@ -33,3 +33,16 @@ The next step is to normailze counts with respect each cells library size.  Sinc
 
 ![cluster](https://user-images.githubusercontent.com/5520490/140042369-72bb47fe-b108-4e13-8491-2e4e30bbbbf0.png)
 
+## Variance
+
+Scran computes the technical and biological variance of each gene.  Using the table or the graph we can select the genes we wish to include in further analysis.
+
+![varaince1](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/variance1.gif?raw=true)
+![variance2](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/variance2.gif?raw=true)
+
+## Expression
+
+
+
+
+
