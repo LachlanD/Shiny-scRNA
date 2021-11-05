@@ -1,11 +1,13 @@
 # Shiny-scRNA
-Siny/R app which provides a graphical interface for exploratory data analysis of single cell RNA-Seq data using R tools such as Bioconductor, Scater, EdgeR, Interactive Complex Heatamps & DataTables.
+Siny/R app which provides a graphical interface for exploratory data analysis of single cell RNA-Seq data using R tools such as Bioconductor, Scater, Scran, EdgeR, Interactive Complex Heatamps & DataTables.
 
 [EdgeR](https://bioconductor.org/packages/release/bioc/html/edgeR.html)
 [interactive Complex Heatmaps](https://bioconductor.org/packages/release/bioc/html/InteractiveComplexHeatmap.html)
 [Bioconductor](https://bioconductor.org/)
+[Scran](https://bioconductor.org/packages/release/bioc/html/scran.html)
 [Scater](https://bioconductor.org/packages/release/bioc/html/scater.html)
 [DataTables for R](https://rstudio.github.io/DT/)
+
 
 ## Launching App
 
@@ -38,10 +40,15 @@ The next step is to normailze counts with respect each cells library size.  Sinc
 Scran computes the technical and biological variance of each gene.  Using the table or the graph we can select the genes we wish to include in further analysis.
 
 ![varaince1](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/variance1.gif?raw=true)
+
+
 ![variance2](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/variance2.gif?raw=true)
 
 ## Expression
 
+Plot the exprssion of the genes by selecting them from the table.
+
+![expression](https://github.com/LachlanD/Shiny-scRNA/blob/main/img/expression.gif?raw=true)
 
 
 
